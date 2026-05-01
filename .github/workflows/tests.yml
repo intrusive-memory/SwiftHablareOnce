@@ -1,0 +1,138 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    name: Code Quality
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for TODOs and FIXMEs
+        shell: bash {0}
+        run: |
+          echo "🔍 Checking for TODOs and FIXMEs in source code..."
+          TODOS=$(grep -r "TODO" Sources/ 2>/dev/null || true)
+          FIXMES=$(grep -r "FIXME" Sources/ 2>/dev/null || true)
+
+          if [ -n "$TODOS" ] || [ -n "$FIXMES" ]; then
+            echo "⚠️  Found TODO/FIXME comments in source code:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$TODOS" ]; then
+              echo "**TODOs:**" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "$TODOS" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -n "$FIXMES" ]; then
+              echo "**FIXMEs:**" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "$FIXMES" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "ℹ️  This is a warning only."  >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No TODO/FIXME comments found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for large files
+        shell: bash {0}
+        run: |
+          echo "🔍 Checking for large files (>1MB)..."
+          LARGE_FILES=$(find . -type f -size +1M -not -path "./.build/*" -not -path "./.git/*" 2>/dev/null || true)
+
+          if [ -n "$LARGE_FILES" ]; then
+            echo "⚠️  Found large files (>1MB):" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$LARGE_FILES" | while read file; do
+              if [ -f "$file" ]; then
+                SIZE=$(ls -lh "$file" | awk '{print $5}')
+                echo "$file ($SIZE)"
+              fi
+            done >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No large files found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for print statements
+        shell: bash {0}
+        run: |
+          echo "🔍 Checking for print statements in production code..."
+          PRINTS=$(grep -r "print(" Sources/ --include="*.swift" 2>/dev/null || true)
+
+          if [ -n "$PRINTS" ]; then
+            COUNT=$(echo "$PRINTS" | wc -l | tr -d ' ')
+            echo "⚠️  Found $COUNT print statement(s):" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$PRINTS" | head -10 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No print statements found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Xcodebuild check
+        run: |
+          echo "🔨 Verifying package builds..."
+          xcodebuild build \
+            -scheme SwiftHablareOnce \
+            -destination 'platform=macOS' \
+            -configuration Debug
+          echo "✅ Package builds successfully" >> $GITHUB_STEP_SUMMARY
+
+  macos-tests:
+    name: macOS Tests
+    runs-on: macos-26
+    needs: [code-quality]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run unit tests on macOS
+        run: |
+          echo "🏃 Running unit tests on macOS via xcodebuild"
+          xcodebuild test \
+            -scheme SwiftHablareOnce \
+            -destination 'platform=macOS' \
+            2>&1 | tee test-output-macOS.log
+          echo "✅ Tests completed"
+
+      - name: Extract test summary
+        if: always()
+        shell: bash {0}
+        run: |
+          echo "## Unit Test Results - macOS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-output-macOS.log ]; then
+            echo "Tests completed. See job logs for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No test output found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-results
+          path: |
+            test-output-macOS.log
+          retention-days: 7
