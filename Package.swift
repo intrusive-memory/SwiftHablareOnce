@@ -33,7 +33,7 @@ let package = Package(
     sibling(
       "SwiftHablare",
       remote: "https://github.com/intrusive-memory/SwiftHablare.git",
-      from: "6.0.0"
+      from: "6.1.0"
     ),
     sibling(
       "SwiftOnce",
