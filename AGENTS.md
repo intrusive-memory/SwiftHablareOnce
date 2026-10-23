@@ -39,16 +39,18 @@ CI uses `xcodebuild` directly on `macos-26` runners (see `.github/workflows/test
 
 ## Sibling Dependency Pattern
 
-Local development uses a sibling-checkout override: when `../SwiftHablare` (or `../SwiftOnce`)
-exists on disk and `CI` is unset, the package resolves against the local path; otherwise it
-falls back to the pinned remote release. See `Package.swift` for the helper.
+During a development cycle, `Package.swift` uses a sibling-checkout override: when
+`../SwiftHablare` (or `../SwiftOnce`) exists on disk and `CI` is unset, the package resolves
+against the local path; otherwise it falls back to the pinned remote release. Tagged releases
+ship a remote-only `Package.swift` (no `sibling(...)` helper); `/branch-hygiene` restores the
+helper on `development` after each release.
 
 ## Branch Workflow
 
 - `main` is protected (no force push, no deletion). Only PR merges land here.
 - `development` is the working branch. Open PRs from feature branches into `development`,
   merge to `main` for releases.
-- CI (tests.yml) runs on PRs targeting `main`.
+- CI (`.github/workflows/tests.yml`) runs on PRs targeting `main`.
 
 ## Type Aliasing Note
 
@@ -60,5 +62,8 @@ where the symbol is unambiguous. Use `HablareVoice` anywhere both modules are im
 
 ## Versioning
 
-This package targets `SwiftHablare >= 6.0.0` and `SwiftOnce >= 0.2.0`. Major-version bumps in
+Released with `/ship-swift-library`; git tags are the source of truth for the published
+version (there is no version constant in source).
+
+This package targets `SwiftHablare >= 6.3.0` and `SwiftOnce >= 1.0.0` (both `.upToNextMajor`). Major-version bumps in
 either dependency may require coordinated updates here.
