@@ -15,8 +15,10 @@ let package = Package(
     )
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "7.1.0")),
-    .package(url: "https://github.com/intrusive-memory/SwiftOnce.git", .upToNextMajor(from: "1.1.1")),
+    .package(
+      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "7.1.0")),
+    .package(
+      url: "https://github.com/intrusive-memory/SwiftOnce.git", .upToNextMajor(from: "1.1.1")),
   ],
   targets: [
     .target(

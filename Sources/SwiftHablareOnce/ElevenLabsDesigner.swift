@@ -57,7 +57,9 @@ public struct ElevenLabsDesigner: VoiceDesigner {
       let model = VoiceDesignModel(rawValue: designModel)
     else {
       throw HablareError.invalidRequest(
-        detail: "unknown design model '\(designModel)'; use \(Self.designModels.joined(separator: " or "))")
+        detail:
+          "unknown design model '\(designModel)'; use \(Self.designModels.joined(separator: " or "))"
+      )
     }
     let apiKey = try requireKey()
     let client = plugin.onceClient(apiKey: apiKey)
@@ -105,7 +107,9 @@ public struct ElevenLabsDesigner: VoiceDesigner {
   /// that; a later process rebuilds one with ``candidate(generatedVoiceId:previewWAV:designModel:sampleText:description:)``.
   public func save(_ candidate: VoiceCandidate, into asset: inout VoiceAsset) async throws {
     let context =
-      try candidate.handle.payload.flatMap { try? JSONDecoder().decode(CandidateContext.self, from: $0) }
+      try candidate.handle.payload.flatMap {
+        try? JSONDecoder().decode(CandidateContext.self, from: $0)
+      }
       ?? CandidateContext(designModel: designModel, sampleText: "")
     let name = voiceName ?? asset.name
     let apiKey = try requireKey()
@@ -232,7 +236,8 @@ public struct ElevenLabsDesigner: VoiceDesigner {
     let media = preview.mediaType.lowercased()
     let looksEncoded =
       data.starts(with: Array("RIFF".utf8)) || data.starts(with: Array("ID3".utf8))
-      || (data.count > 1 && data[data.startIndex] == 0xFF && data[data.startIndex + 1] & 0xE0 == 0xE0)
+      || (data.count > 1 && data[data.startIndex] == 0xFF
+        && data[data.startIndex + 1] & 0xE0 == 0xE0)
       || media.contains("mpeg") || media.contains("mp3")
     if !looksEncoded || media.contains("pcm") || media.contains("l16") {
       guard data.count % 2 == 0 else { return try wav(from: data) }
@@ -245,7 +250,9 @@ public struct ElevenLabsDesigner: VoiceDesigner {
   }
 
   /// Sample rate, channels and duration from a 16-bit PCM WAV header.
-  static func wavInfo(_ wav: Data) throws -> (sampleRate: Int, channels: Int, duration: TimeInterval) {
+  static func wavInfo(_ wav: Data) throws -> (
+    sampleRate: Int, channels: Int, duration: TimeInterval
+  ) {
     let bytes = [UInt8](wav)
     guard bytes.count >= 44, wav.starts(with: Array("RIFF".utf8)) else {
       throw HablareError.invalidRequest(detail: "preview is not a WAV file")

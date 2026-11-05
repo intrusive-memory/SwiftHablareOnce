@@ -66,13 +66,15 @@ private func makePlugin(
   @Test func identity() {
     #expect(ElevenLabsPlugin.id == "elevenlabs")
     #expect(ElevenLabsPlugin.kind == .cloud)
-    #expect(ElevenLabsPlugin.credentials.map(\.primaryEnvironmentVariable) == ["ELEVENLABS_API_KEY"])
+    #expect(
+      ElevenLabsPlugin.credentials.map(\.primaryEnvironmentVariable) == ["ELEVENLABS_API_KEY"])
     #expect(
       ElevenLabsPlugin.models.map(\.id) == [
         "eleven_v4", "eleven_v4_turbo", "eleven_v3", "eleven_multilingual_v2", "eleven_flash_v2_5",
       ])
     #expect(
-      ElevenLabsPlugin.settingsSchema.definition(for: "model")?.defaultValue == .string("eleven_v4"))
+      ElevenLabsPlugin.settingsSchema.definition(for: "model")?.defaultValue == .string("eleven_v4")
+    )
   }
 
   // MARK: Schema

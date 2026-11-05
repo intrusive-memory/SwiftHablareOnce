@@ -35,7 +35,8 @@ private func log(_ line: String) { print("[live] \(line)") }
 
 private func wavHeader(_ data: Data) -> (sampleRate: Int, channels: Int, bits: Int)? {
   let b = [UInt8](data)
-  guard b.count >= 44, data.prefix(4) == Data("RIFF".utf8), data.subdata(in: 8..<12) == Data("WAVE".utf8)
+  guard b.count >= 44, data.prefix(4) == Data("RIFF".utf8),
+    data.subdata(in: 8..<12) == Data("WAVE".utf8)
   else { return nil }
   func u16(_ i: Int) -> Int { Int(b[i]) | Int(b[i + 1]) << 8 }
   func u32(_ i: Int) -> Int { u16(i) | u16(i + 2) << 16 }
@@ -63,7 +64,9 @@ private func wavHeader(_ data: Data) -> (sampleRate: Int, channels: Int, bits: I
       settings: VoiceSettings(["model": .string("eleven_v4")]))
 
     let audio = try await synth.synthesize(request)
-    log("eleven_v4 accepted '[whispering] <line>' (HTTP 200); droppedInstruct=\(String(describing: audio.droppedInstruct))")
+    log(
+      "eleven_v4 accepted '[whispering] <line>' (HTTP 200); droppedInstruct=\(String(describing: audio.droppedInstruct))"
+    )
     log("duration \(audio.duration) s for \(line.count) characters plus tag")
     let header = try #require(wavHeader(audio.data), "response is not a RIFF/WAVE file")
     #expect(header.sampleRate == 24_000)
@@ -90,7 +93,8 @@ private func wavHeader(_ data: Data) -> (sampleRate: Int, channels: Int, bits: I
     do {
       let designer = plugin.designer(voiceName: name)
       let candidates = try await designer.design(
-        VoiceDesignRequest(description: "A calm, warm older woman with a soft coastal accent", sampleText: sample))
+        VoiceDesignRequest(
+          description: "A calm, warm older woman with a soft coastal accent", sampleText: sample))
       #expect(!candidates.isEmpty)
       let first = try #require(candidates.first)
       if let preview = await plugin.previewCache.preview(id: first.handle.identifier) {
@@ -113,7 +117,9 @@ private func wavHeader(_ data: Data) -> (sampleRate: Int, channels: Int, bits: I
     } else {
       // Saved but not recorded (failure mid-save): find by the unique name.
       await client.invalidateVoiceCache()
-      if let found = try? await client.voices(search: name, category: .generated), !found.voices.isEmpty {
+      if let found = try? await client.voices(search: name, category: .generated),
+        !found.voices.isEmpty
+      {
         for voice in found.voices where voice.name == name {
           do { try await client.deleteVoice(voice.voiceId) } catch { deleteError = error }
         }
@@ -124,6 +130,8 @@ private func wavHeader(_ data: Data) -> (sampleRate: Int, channels: Int, bits: I
 
     if let failure { throw failure }
     if let deleteError { throw deleteError }
-    #expect(after == before, "voice slot leaked: before \(String(describing: before)), after \(String(describing: after))")
+    #expect(
+      after == before,
+      "voice slot leaked: before \(String(describing: before)), after \(String(describing: after))")
   }
 }

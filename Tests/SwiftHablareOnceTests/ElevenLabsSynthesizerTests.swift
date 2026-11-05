@@ -124,7 +124,8 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
     #expect(u32(40) == UInt32(pcm.count))
     #expect(d.dropFirst(44) == pcm)
 
-    #expect(audio.format == AudioFormat(container: .wav, sampleRate: 24_000, channels: 1, bitDepth: 16))
+    #expect(
+      audio.format == AudioFormat(container: .wav, sampleRate: 24_000, channels: 1, bitDepth: 16))
     #expect(abs(audio.duration - 100.0 / 24_000) < 1e-9)
     #expect(synth.nativeFormats.contains(.pcm24kMono16))
   }
@@ -216,7 +217,8 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
     #expect(synth.limits(forModel: "eleven_v3").maxCharacters == 5_000)
     #expect(synth.limits(forModel: "eleven_flash_v2_5").maxCharacters == 40_000)
     await #expect(throws: HablareError.self) {
-      _ = try await synth.synthesize(request(String(repeating: "a", count: 5_001), model: "eleven_v3"))
+      _ = try await synth.synthesize(
+        request(String(repeating: "a", count: 5_001), model: "eleven_v3"))
     }
     #expect(http.ttsRequests.isEmpty)
   }
@@ -225,7 +227,8 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
 
   @Test func estimateCostIsCharsTimesFactor() async throws {
     let synth = try await makeSynth(http: RoutingHTTP(tts: okReply()))
-    let turbo = synth.estimateCost(request(String(repeating: "a", count: 101), model: "eleven_v4_turbo"))
+    let turbo = synth.estimateCost(
+      request(String(repeating: "a", count: 101), model: "eleven_v4_turbo"))
     #expect(turbo?.quantity == 51)
     #expect(turbo?.unit == .credits)
     #expect(synth.estimateCost(request("abcd", model: "eleven_v3"))?.quantity == 4)
@@ -267,7 +270,8 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
     let http = RoutingHTTP(tts: okReply())
     #expect(try await makeSynth(http: http).maxConcurrentRequests == 2)
     let configured = try await makeSynth(
-      http: http, configuration: PluginConfiguration(settings: ["max_concurrent_requests": .int(5)]))
+      http: http, configuration: PluginConfiguration(settings: ["max_concurrent_requests": .int(5)])
+    )
     #expect(configured.maxConcurrentRequests == 5)
   }
 
@@ -317,14 +321,17 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
     let base = try #require(synth.cacheKey(for: request()))
     #expect(synth.cacheKey(for: request()) == base)
     // Explicit defaults equal implicit defaults.
-    #expect(synth.cacheKey(for: request(model: "eleven_v4", extra: ["stability": .double(0.5)])) == base)
+    #expect(
+      synth.cacheKey(for: request(model: "eleven_v4", extra: ["stability": .double(0.5)])) == base)
     // Continuity text does not feed the key.
     #expect(synth.cacheKey(for: request(previous: "x", next: "y")) == base)
 
     #expect(synth.cacheKey(for: request("Hello there!")) != base)
     #expect(synth.cacheKey(for: request(model: "eleven_v3")) != base)
     #expect(synth.cacheKey(for: request(instruct: "(whispering)")) != base)
-    #expect(synth.cacheKey(for: request(voice: .catalog(pluginId: "elevenlabs", voiceId: "other"))) != base)
+    #expect(
+      synth.cacheKey(for: request(voice: .catalog(pluginId: "elevenlabs", voiceId: "other")))
+        != base)
     let changes: [String: SettingValue] = [
       "stability": .double(0.4), "similarity_boost": .double(0.7), "style": .double(0.1),
       "use_speaker_boost": .bool(false), "speed": .double(1.1), "seed": .int(3),
@@ -343,7 +350,8 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
 
   @Test func assetVoiceUsesTheVoxVoiceId() async throws {
     var asset = VoiceAsset(name: "Test", description: "A test voice for the synth.")
-    try asset.setExtension(["voice_id": "voxVoice9", "model_id": "eleven_v4"], forEngine: "elevenlabs")
+    try asset.setExtension(
+      ["voice_id": "voxVoice9", "model_id": "eleven_v4"], forEngine: "elevenlabs")
     let url = FileManager.default.temporaryDirectory
       .appendingPathComponent("synth-test-\(UUID().uuidString).vox")
     try asset.write(to: url)
@@ -372,7 +380,9 @@ private func body(_ req: URLRequest) throws -> [String: Any] {
         Issue.record("expected unsupported")
         continue
       }
-      await #expect(throws: HablareError.self) { _ = try await synth.synthesize(request(voice: voice)) }
+      await #expect(throws: HablareError.self) {
+        _ = try await synth.synthesize(request(voice: voice))
+      }
     }
   }
 

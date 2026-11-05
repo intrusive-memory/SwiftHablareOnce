@@ -88,7 +88,9 @@ private func json(_ req: URLRequest) throws -> [String: Any] {
     let plugin = try await makePlugin(DesignHTTP())
     #expect(plugin.designer is ElevenLabsDesigner)
     let designer = try #require(plugin.designer)
-    #expect(designer.producedSources.contains(VoiceSourcePattern(engine: "elevenlabs", kind: .serverHandle)))
+    #expect(
+      designer.producedSources.contains(
+        VoiceSourcePattern(engine: "elevenlabs", kind: .serverHandle)))
   }
 
   @Test func designReturnsCandidatesWithIdsAndWavPreviews() async throws {
@@ -119,7 +121,10 @@ private func json(_ req: URLRequest) throws -> [String: Any] {
         _ = try await designer.design(VoiceDesignRequest(description: "d", sampleText: text))
         Issue.record("expected an error")
       } catch let error as HablareError {
-        guard case .invalidRequest(let detail) = error else { Issue.record("\(error)"); return }
+        guard case .invalidRequest(let detail) = error else {
+          Issue.record("\(error)")
+          return
+        }
         #expect(detail.contains("100 to 1000"))
         #expect(error.category == .permanent)
       }
@@ -151,10 +156,11 @@ private func json(_ req: URLRequest) throws -> [String: Any] {
     #expect(create["voice_description"] as? String == "A gravelly old sailor")
 
     let fields = try #require(asset.extensionFields(forEngine: "elevenlabs"))
-    #expect(Set(fields.keys) == [
-      "voice_id", "generated_voice_id", "design_model", "description_sent", "sample_text",
-      "created_at",
-    ])
+    #expect(
+      Set(fields.keys) == [
+        "voice_id", "generated_voice_id", "design_model", "description_sent", "sample_text",
+        "created_at",
+      ])
     #expect(fields["voice_id"] as? String == "perm_voice_1")
     #expect(fields["generated_voice_id"] as? String == "gen_2")
     #expect(fields["design_model"] as? String == "eleven_multilingual_ttv_v2")
@@ -218,7 +224,10 @@ private func json(_ req: URLRequest) throws -> [String: Any] {
       try await designer.save(candidates[0], into: &asset)
       Issue.record("expected an error")
     } catch let error as HablareError {
-      guard case .invalidRequest(let detail) = error else { Issue.record("\(error)"); return }
+      guard case .invalidRequest(let detail) = error else {
+        Issue.record("\(error)")
+        return
+      }
       #expect(error.category == .permanent)
       #expect(detail.contains("voice limit reached"))
       #expect(detail.contains("30 voice slots"))
@@ -267,10 +276,11 @@ private func json(_ req: URLRequest) throws -> [String: Any] {
     #expect(create["voice_description"] as? String == "A gravelly old sailor")
 
     let fields = try #require(asset.extensionFields(forEngine: "elevenlabs"))
-    #expect(Set(fields.keys) == [
-      "voice_id", "generated_voice_id", "design_model", "description_sent", "sample_text",
-      "created_at",
-    ])
+    #expect(
+      Set(fields.keys) == [
+        "voice_id", "generated_voice_id", "design_model", "description_sent", "sample_text",
+        "created_at",
+      ])
     #expect(fields["voice_id"] as? String == "perm_voice_1")
     #expect(fields["generated_voice_id"] as? String == "gen_3")
     #expect(fields["design_model"] as? String == "eleven_ttv_v3")

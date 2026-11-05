@@ -343,12 +343,14 @@ extension ElevenLabsSynthesizer {
     case .voiceNotFound:
       return HablareError.invalidRequest(detail: "ElevenLabs voice not found")
     case .invalidRequest(let body):
-      return HablareError.invalidRequest(detail: scrub("ElevenLabs rejected the request: \(body)", apiKey))
+      return HablareError.invalidRequest(
+        detail: scrub("ElevenLabs rejected the request: \(body)", apiKey))
     case .textTooLong(let model, let limit, let count):
       return HablareError.invalidRequest(
         detail: "text is \(count) characters; \(model) allows \(limit)")
     case .networkError(let underlying):
-      return HablareError.transient(underlying: Sanitized(scrub(String(describing: underlying), apiKey)))
+      return HablareError.transient(
+        underlying: Sanitized(scrub(String(describing: underlying), apiKey)))
     default:
       return HablareError.transient(underlying: Sanitized(scrub(String(describing: once), apiKey)))
     }
