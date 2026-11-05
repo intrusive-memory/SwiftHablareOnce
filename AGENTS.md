@@ -58,3 +58,7 @@ either dependency may require coordinated updates here.
   16-bit WAV, `droppedInstruct == false`). Whether the tag is spoken aloud was not transcribed.
 - Observed 2026-11-04: the design API returns previews with media type `audio/pcm` when `pcm_24000` is requested (3 previews).
 - A designed voice is deleted in the test's cleanup; `voice_slots_used` was 4 before and 4 after.
+
+## Development cycle
+
+Current cycle: 0.2.0-dev (post-v0.2.0; the next release version is chosen at ship time).
