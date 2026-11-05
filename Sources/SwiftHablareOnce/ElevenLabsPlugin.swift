@@ -3,7 +3,7 @@
 //  SwiftHablareOnce
 //
 //  ElevenLabs on SwiftHablare 7 (EL-1): identity, credentials, models, settings, status,
-//  the quota check and the synthesizer role. The designer arrives in a later sortie.
+//  the quota check, the synthesizer and the designer roles.
 //  Model and voice settings come only from request settings and `PluginConfiguration`,
 //  never from process-wide preference storage (EL-1.2).
 //
@@ -32,6 +32,7 @@ public final class ElevenLabsPlugin: HablarePlugin {
   private let audioCacheDirectory = FileManager.default.temporaryDirectory
     .appendingPathComponent("SwiftHablareOnce-unused-cache-\(UUID().uuidString)", isDirectory: true)
   private let subscriptionCache = SubscriptionCache()
+  let previewCache = PreviewCache()
 
   public convenience init(context: PluginContext) async throws {
     try await self.init(context: context, legacyKeychain: SystemLegacyKeychain())
@@ -134,6 +135,18 @@ public final class ElevenLabsPlugin: HablarePlugin {
   }
 
   public var synthesizer: (any VoiceSynthesizer)? { ElevenLabsSynthesizer(plugin: self) }
+
+  /// The designer with the default design model and no fixed voice name (the `.vox` asset's
+  /// name is used on save). Use ``designer(voiceName:designModel:)`` to set either.
+  public var designer: (any VoiceDesigner)? { ElevenLabsDesigner(plugin: self) }
+
+  /// A designer whose ``ElevenLabsDesigner/save(_:into:)`` names the ElevenLabs voice
+  /// `voiceName` (e.g. `<project> — <CHARACTER>`).
+  public func designer(
+    voiceName: String?, designModel: String = ElevenLabsDesigner.defaultDesignModel
+  ) -> ElevenLabsDesigner {
+    ElevenLabsDesigner(plugin: self, voiceName: voiceName, designModel: designModel)
+  }
 
   private static var missingCredentialStatus: PluginStatus {
     .needsCredential(envVar: CredentialRequirement.elevenLabs.primaryEnvironmentVariable)
