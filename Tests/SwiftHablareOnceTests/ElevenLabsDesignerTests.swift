@@ -37,11 +37,11 @@ private final class DesignHTTP: HTTPClient, @unchecked Sendable {
     var body = Data()
     switch (request.httpMethod ?? "GET", request.url?.path ?? "") {
     case ("POST", "/v1/text-to-voice/design"):
-      let wav = ElevenLabsSynthesizer.wavWrapping(pcm: Data(repeating: 1, count: 4_800))
+      let pcm = Data(repeating: 1, count: 4_800)
       let previews = (1...3).map { i in
         """
-        {"audio_base_64":"\(wav.base64EncodedString())","generated_voice_id":"gen_\(i)",\
-        "media_type":"audio/wav","duration_secs":0.1,"language":"en"}
+        {"audio_base_64":"\(pcm.base64EncodedString())","generated_voice_id":"gen_\(i)",\
+        "media_type":"audio/pcm","duration_secs":0.1,"language":"en"}
         """
       }
       body = Data(#"{"previews":[\#(previews.joined(separator: ","))],"text":"t"}"#.utf8)
@@ -227,15 +227,56 @@ private func json(_ req: URLRequest) throws -> [String: Any] {
     #expect(asset.extensionFields(forEngine: "elevenlabs") == nil)
   }
 
-  @Test func saveRejectsACandidateFromAnotherPluginInstance() async throws {
-    let designerA = try #require(try await makePlugin(DesignHTTP()).designer)
-    let candidates = try await designerA.design(
+  @Test func designRequestsPcm24000AndReturns24kMono16BitWav() async throws {
+    let http = DesignHTTP()
+    let designer = try #require(try await makePlugin(http).designer)
+    let candidates = try await designer.design(
       VoiceDesignRequest(description: "d", sampleText: sample))
-    let designerB = try #require(try await makePlugin(DesignHTTP()).designer)
-    var asset = VoiceAsset(name: "N", description: "d")
-    await #expect(throws: HablareError.self) {
-      try await designerB.save(candidates[0], into: &asset)
-    }
+    let request = try #require(http.requests(path: "/v1/text-to-voice/design").first)
+    let items = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?
+      .queryItems
+    #expect(items?.first { $0.name == "output_format" }?.value == "pcm_24000")
+    let preview = try #require(candidates.first).preview
+    #expect(preview.data.count == 44 + 4_800)
+    #expect(String(decoding: preview.data.prefix(4), as: UTF8.self) == "RIFF")
+    #expect(preview.format.sampleRate == 24_000)
+    #expect(preview.format.channels == 1)
+    #expect(preview.format.bitDepth == 16)
+    #expect(abs(preview.duration - 0.1) < 0.001)
+  }
+
+  @Test func saveFromFreshDesignerWithReconstructedCandidate() async throws {
+    // Process 1 designs and persists; process 2 (empty preview cache) saves.
+    let designHTTP = DesignHTTP()
+    let designed = try await #require(try await makePlugin(designHTTP).designer)
+      .design(VoiceDesignRequest(description: "A gravelly old sailor", sampleText: sample))
+    let persisted = designed[2]
+
+    let http = DesignHTTP()
+    let designer = try await makePlugin(http).designer(voiceName: "Harbour — SAILOR")
+    let candidate = try ElevenLabsDesigner.candidate(
+      generatedVoiceId: persisted.handle.identifier, previewWAV: persisted.preview.data,
+      designModel: "eleven_ttv_v3", sampleText: sample, description: "A gravelly old sailor")
+    var asset = VoiceAsset(name: "SAILOR", description: "old sailor")
+    try await designer.save(candidate, into: &asset)
+
+    #expect(http.requests(path: "/v1/text-to-voice/design").isEmpty)
+    let create = try json(try #require(http.requests(path: "/v1/text-to-voice").first))
+    #expect(create["generated_voice_id"] as? String == "gen_3")
+    #expect(create["voice_name"] as? String == "Harbour — SAILOR")
+    #expect(create["voice_description"] as? String == "A gravelly old sailor")
+
+    let fields = try #require(asset.extensionFields(forEngine: "elevenlabs"))
+    #expect(Set(fields.keys) == [
+      "voice_id", "generated_voice_id", "design_model", "description_sent", "sample_text",
+      "created_at",
+    ])
+    #expect(fields["voice_id"] as? String == "perm_voice_1")
+    #expect(fields["generated_voice_id"] as? String == "gen_3")
+    #expect(fields["design_model"] as? String == "eleven_ttv_v3")
+    #expect(fields["sample_text"] as? String == sample)
+    let samplePath = "embeddings/elevenlabs/eleven_ttv_v3/sample-audio.wav"
+    #expect(asset.entryData(at: samplePath) == persisted.preview.data)
   }
 
   @Test func nonWavPreviewIsConvertedToWav() throws {

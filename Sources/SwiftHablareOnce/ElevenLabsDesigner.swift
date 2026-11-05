@@ -65,7 +65,8 @@ public struct ElevenLabsDesigner: VoiceDesigner {
     do {
       response = try await client.designVoice(
         description: request.description, previewText: request.sampleText, model: model,
-        loudness: nil, guidanceScale: nil, seed: nil, autoGenerateText: nil)
+        loudness: nil, guidanceScale: nil, seed: nil, autoGenerateText: nil,
+        outputFormat: .pcm_24000)
     } catch {
       throw await mapped(error, apiKey: apiKey, client: client)
     }
@@ -75,7 +76,7 @@ public struct ElevenLabsDesigner: VoiceDesigner {
     var candidates: [VoiceCandidate] = []
     for preview in response.previews {
       let wav: DecodedWAV
-      do { wav = try Self.wav(from: preview.audioData) } catch {
+      do { wav = try Self.previewWAV(from: preview) } catch {
         throw HablareError.invalidRequest(
           detail: "cannot decode voice preview audio (\(preview.mediaType))")
       }
@@ -98,25 +99,22 @@ public struct ElevenLabsDesigner: VoiceDesigner {
   /// `POST /v1/text-to-voice` (permanent voice), then EL-3.2 into `asset`. Other engines'
   /// embeddings and extensions are left alone.
   ///
-  /// The candidate must come from `design` on the same plugin instance (SwiftOnce 1.1.0 cannot
-  /// build a preview from an id alone).
+  /// Works across processes. The voice is created from `candidate.handle.identifier` (the
+  /// `generated_voice_id`), the design model and sample text come from `handle.payload`, and the
+  /// sample-audio entry is `candidate.preview`. A candidate returned by `design` carries all of
+  /// that; a later process rebuilds one with ``candidate(generatedVoiceId:previewWAV:designModel:sampleText:description:)``.
   public func save(_ candidate: VoiceCandidate, into asset: inout VoiceAsset) async throws {
     let context =
       try candidate.handle.payload.flatMap { try? JSONDecoder().decode(CandidateContext.self, from: $0) }
       ?? CandidateContext(designModel: designModel, sampleText: "")
-    guard let preview = await plugin.previewCache.preview(id: candidate.handle.identifier) else {
-      throw HablareError.invalidRequest(
-        detail:
-          "voice candidate '\(candidate.handle.identifier)' was not designed by this plugin instance; design again"
-      )
-    }
     let name = voiceName ?? asset.name
     let apiKey = try requireKey()
     let client = plugin.onceClient(apiKey: apiKey)
     let createdVoiceId: String
     do {
       createdVoiceId = try await client.createVoice(
-        from: preview, name: name, description: candidate.promptSent, labels: nil
+        generatedVoiceId: candidate.handle.identifier, name: name,
+        description: candidate.promptSent, labels: nil
       ).voiceId
     } catch {
       throw await mapped(error, apiKey: apiKey, client: client)
@@ -136,6 +134,29 @@ public struct ElevenLabsDesigner: VoiceDesigner {
       ], forEngine: ElevenLabsPlugin.id)
     try asset.addSampleAudio(
       candidate.preview.data, engine: ElevenLabsPlugin.id, model: context.designModel)
+  }
+
+  // MARK: Reconstructing a candidate
+
+  /// Rebuilds a ``VoiceCandidate`` from persisted data so ``save(_:into:)`` can run in a later
+  /// process than ``design(_:)``. Persist, per candidate: `candidate.handle.identifier`
+  /// (`generatedVoiceId`), the preview WAV (`candidate.preview.data`), and the design inputs
+  /// (the design model, the sample text, and `candidate.promptSent` as `description`).
+  public static func candidate(
+    generatedVoiceId: String, previewWAV: Data, designModel: String = defaultDesignModel,
+    sampleText: String, description: String
+  ) throws -> VoiceCandidate {
+    let info = try wavInfo(previewWAV)
+    let payload = try JSONEncoder().encode(
+      CandidateContext(designModel: designModel, sampleText: sampleText))
+    return VoiceCandidate(
+      preview: GeneratedAudio(
+        data: previewWAV,
+        format: AudioFormat(
+          container: .wav, sampleRate: info.sampleRate, channels: info.channels, bitDepth: 16),
+        duration: info.duration),
+      handle: VoiceCandidate.Handle(identifier: generatedVoiceId, payload: payload),
+      promptSent: description)
   }
 
   // MARK: Delete
@@ -202,6 +223,43 @@ public struct ElevenLabsDesigner: VoiceDesigner {
     var sampleRate: Int
     var channels: Int
     var duration: TimeInterval
+  }
+
+  /// The preview as a WAV: raw PCM (requested as `pcm_24000`) gets a 44-byte header; anything
+  /// else goes through the AVFoundation decode.
+  static func previewWAV(from preview: VoicePreview) throws -> DecodedWAV {
+    let data = preview.audioData
+    let media = preview.mediaType.lowercased()
+    let looksEncoded =
+      data.starts(with: Array("RIFF".utf8)) || data.starts(with: Array("ID3".utf8))
+      || (data.count > 1 && data[data.startIndex] == 0xFF && data[data.startIndex + 1] & 0xE0 == 0xE0)
+      || media.contains("mpeg") || media.contains("mp3")
+    if !looksEncoded || media.contains("pcm") || media.contains("l16") {
+      guard data.count % 2 == 0 else { return try wav(from: data) }
+      let rate = 24_000
+      return DecodedWAV(
+        data: ElevenLabsSynthesizer.wavWrapping(pcm: data, sampleRate: rate), sampleRate: rate,
+        channels: 1, duration: Double(data.count / 2) / Double(rate))
+    }
+    return try wav(from: data)
+  }
+
+  /// Sample rate, channels and duration from a 16-bit PCM WAV header.
+  static func wavInfo(_ wav: Data) throws -> (sampleRate: Int, channels: Int, duration: TimeInterval) {
+    let bytes = [UInt8](wav)
+    guard bytes.count >= 44, wav.starts(with: Array("RIFF".utf8)) else {
+      throw HablareError.invalidRequest(detail: "preview is not a WAV file")
+    }
+    func u16(_ i: Int) -> Int { Int(bytes[i]) | Int(bytes[i + 1]) << 8 }
+    func u32(_ i: Int) -> Int { u16(i) | u16(i + 2) << 16 }
+    let channels = u16(22)
+    let rate = u32(24)
+    let bits = u16(34)
+    guard channels > 0, rate > 0, bits > 0 else {
+      throw HablareError.invalidRequest(detail: "preview WAV header is invalid")
+    }
+    let frames = (bytes.count - 44) / (channels * bits / 8)
+    return (rate, channels, Double(frames) / Double(rate))
   }
 
   /// A 16-bit PCM WAV for `audio`, which is already WAV or any format AVFoundation reads

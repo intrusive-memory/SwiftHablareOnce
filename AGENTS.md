@@ -43,5 +43,5 @@ CI uses `xcodebuild` directly on `xcode-27` runners (see `.github/workflows/test
 Released with `/ship-swift-library`; git tags are the source of truth for the published
 version (there is no version constant in source).
 
-This package targets `SwiftHablare >= 7.1.0` and `SwiftOnce >= 1.1.0` (both `.upToNextMajor`). Major-version bumps in
+This package targets `SwiftHablare >= 7.1.0` and `SwiftOnce >= 1.1.1` (both `.upToNextMajor`). Major-version bumps in
 either dependency may require coordinated updates here.
