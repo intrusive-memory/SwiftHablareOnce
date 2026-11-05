@@ -2,10 +2,10 @@
 //  ElevenLabsPlugin.swift
 //  SwiftHablareOnce
 //
-//  ElevenLabs on SwiftHablare 7 (EL-1). Skeleton: identity, credentials, models, settings,
-//  status and the quota check. The synthesizer and designer roles arrive in later sorties.
-//  Reads no UserDefaults: model and voice settings come only from request settings and
-//  `PluginConfiguration` (EL-1.2).
+//  ElevenLabs on SwiftHablare 7 (EL-1): identity, credentials, models, settings, status,
+//  the quota check and the synthesizer role. The designer arrives in a later sortie.
+//  Model and voice settings come only from request settings and `PluginConfiguration`,
+//  never from process-wide preference storage (EL-1.2).
 //
 
 import Foundation
@@ -26,7 +26,11 @@ public final class ElevenLabsPlugin: HablarePlugin {
   let keys: any APIKeyStoring
   let httpClient: (any HTTPClient)?
   let onceConfiguration: SwiftOnceConfiguration
+  let maxConcurrentRequests: Int
   private let migrator: LegacyKeyMigrator
+  private let clientBox = ClientBox()
+  private let audioCacheDirectory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("SwiftHablareOnce-unused-cache-\(UUID().uuidString)", isDirectory: true)
   private let subscriptionCache = SubscriptionCache()
 
   public convenience init(context: PluginContext) async throws {
@@ -44,7 +48,12 @@ public final class ElevenLabsPlugin: HablarePlugin {
       defaultModel: Model(ElevenLabsModels.defaultModelId))
   ) async throws {
     // Reject unknown plugin-wide keys up front, naming the key.
-    _ = try context.configuration.validated(against: Self.settingsSchema)
+    let validated = try context.configuration.validated(against: Self.settingsSchema)
+    if case .int(let n)? = validated.settings[ElevenLabsModels.SettingKey.maxConcurrentRequests] {
+      self.maxConcurrentRequests = n
+    } else {
+      self.maxConcurrentRequests = ElevenLabsModels.defaultMaxConcurrentRequests
+    }
     self.keys = context.keys
     self.httpClient = httpClient
     self.onceConfiguration = onceConfiguration
@@ -104,10 +113,27 @@ public final class ElevenLabsPlugin: HablarePlugin {
   }
 
   private func remainingCredits(apiKey: String) async -> Int? {
-    let client = SwiftOnce(
-      apiKey: apiKey, configuration: onceConfiguration, httpClient: httpClient)
+    let client = onceClient(apiKey: apiKey)
     return await subscriptionCache.remaining { try await client.subscription() }
   }
+
+  /// One SwiftOnce client per key, so its concurrency gate is shared by every request.
+  ///
+  /// SwiftOnce's own disk audio cache is pointed at a private directory and capped at zero
+  /// bytes: it ignores seed, language and continuity text, and Hablare's `cacheKey(for:)`
+  /// is the cache of record (EL-2.4).
+  func onceClient(apiKey: String) -> SwiftOnce {
+    clientBox.client(for: apiKey) {
+      var configuration = onceConfiguration
+      configuration.maxConcurrentRequests = maxConcurrentRequests
+      configuration.defaultOutputFormat = .pcm_24000
+      configuration.audioCacheDirectory = audioCacheDirectory
+      configuration.audioCacheMaxBytes = 0
+      return SwiftOnce(apiKey: apiKey, configuration: configuration, httpClient: httpClient)
+    }
+  }
+
+  public var synthesizer: (any VoiceSynthesizer)? { ElevenLabsSynthesizer(plugin: self) }
 
   private static var missingCredentialStatus: PluginStatus {
     .needsCredential(envVar: CredentialRequirement.elevenLabs.primaryEnvironmentVariable)
@@ -126,4 +152,21 @@ actor SubscriptionCache {
   }
 
   func invalidate() { cached = nil }
+}
+
+/// Caches the SwiftOnce client for the current key.
+final class ClientBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private var key: String?
+  private var cached: SwiftOnce?
+
+  func client(for apiKey: String, make: () -> SwiftOnce) -> SwiftOnce {
+    lock.withLock {
+      if let cached, key == apiKey { return cached }
+      let client = make()
+      key = apiKey
+      cached = client
+      return client
+    }
+  }
 }

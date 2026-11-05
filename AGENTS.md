@@ -6,8 +6,8 @@ backed by [SwiftOnce](https://github.com/intrusive-memory/SwiftOnce) as the HTTP
 ## What this package is
 
 `ElevenLabsPlugin` (id `elevenlabs`, kind `.cloud`) plus its models, settings schema, legacy
-Keychain copy and quota check. The synthesizer and designer roles are added in later sorties.
-Hosts register it with `PluginRegistry`. It reads no `UserDefaults`: model and voice settings
+Keychain copy and quota check. The synthesizer role (`ElevenLabsSynthesizer`) is in place; the designer role comes in a later sortie.
+Hosts register it with `PluginRegistry`. It keeps no process-wide preferences: model and voice settings
 come only from request settings and `PluginConfiguration`.
 
 ## Platforms

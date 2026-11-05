@@ -72,7 +72,7 @@ private func makePlugin(
         "eleven_v4", "eleven_v4_turbo", "eleven_v3", "eleven_multilingual_v2", "eleven_flash_v2_5",
       ])
     #expect(
-      ElevenLabsPlugin.settingsSchema.definition(for: "model")?.defaultValue == .choice("eleven_v4"))
+      ElevenLabsPlugin.settingsSchema.definition(for: "model")?.defaultValue == .string("eleven_v4"))
   }
 
   // MARK: Schema
@@ -101,7 +101,7 @@ private func makePlugin(
   @Test func schemaAcceptsValidSettingsAndFillsDefaults() throws {
     let validated = try VoiceSettings([
       "speed": .double(1.2), "seed": .int(Int(UInt32.max)), "use_speaker_boost": .bool(false),
-      "model": .choice("eleven_v3"), "style": .int(1),
+      "model": .string("eleven_v3"), "style": .int(1),
     ]).validated(against: ElevenLabsPlugin.settingsSchema, scope: .perVoice)
     #expect(validated["speed"] == .double(1.2))
     #expect(validated["style"] == .double(1))

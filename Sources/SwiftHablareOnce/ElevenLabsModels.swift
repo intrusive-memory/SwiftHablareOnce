@@ -24,18 +24,40 @@ public enum ElevenLabsModels {
     }
   }
 
-  /// Per-request character limit.
+  /// Per-request character limit for a known model; `nil` for an id this release does not know.
   public static func maxCharacters(forModel id: String) -> Int? {
     switch id {
     case "eleven_v4", "eleven_v4_turbo", "eleven_multilingual_v2": return 10_000
-    case "eleven_v3": return 5_000
-    case "eleven_flash_v2_5": return 40_000
+    case "eleven_v3", "eleven_v3_conversational": return 5_000
+    case "eleven_flash_v2_5", "eleven_turbo_v2_5": return 40_000
+    case "eleven_turbo_v2", "eleven_flash_v2": return 30_000
     default: return nil
     }
   }
 
-  /// Models that take audio tags, so `.instruct` is meaningful (EL-1.6).
-  static let instructModels: Set<String> = ["eleven_v3", "eleven_v4", "eleven_v4_turbo"]
+  /// Limit used for a valid model id this release does not know.
+  public static let conservativeMaxCharacters = 5_000
+
+  /// The limit the synthesizer enforces: the audit value, else ``conservativeMaxCharacters``.
+  public static func effectiveMaxCharacters(forModel id: String) -> Int {
+    maxCharacters(forModel: id) ?? conservativeMaxCharacters
+  }
+
+  /// Models that take audio tags, so `.instruct` is meaningful (EL-1.6): `eleven_v3` and
+  /// every `eleven_v4*`. An unknown id never qualifies unless it starts with `eleven_v4`.
+  public static func supportsAudioTags(model id: String) -> Bool {
+    id == "eleven_v3" || id.hasPrefix("eleven_v4")
+  }
+
+  /// A model id is accepted when it matches `^eleven_[a-z0-9_]+$` (EL-1.3), so a model
+  /// ElevenLabs ships later works without a plugin release.
+  public static func isValidModelId(_ id: String) -> Bool {
+    let prefix = "eleven_"
+    guard id.hasPrefix(prefix), id.utf8.count > prefix.utf8.count else { return false }
+    return id.utf8.dropFirst(prefix.utf8.count).allSatisfy {
+      ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0x30 && $0 <= 0x39) || $0 == 0x5F
+    }
+  }
 
   public static let descriptors: [ModelDescriptor] = [
     descriptor("eleven_v4", "Eleven v4"),
@@ -48,15 +70,16 @@ public enum ElevenLabsModels {
   private static func descriptor(_ id: String, _ name: String) -> ModelDescriptor {
     ModelDescriptor(
       id: id, displayName: name, kind: .cloud,
-      capabilities: instructModels.contains(id) ? [.instruct] : [])
+      capabilities: supportsAudioTags(model: id) ? [.instruct] : [])
   }
 
   /// EL-1.5. Defaults are ElevenLabs' own; `seed` has none (unseeded by default).
   public static let settingsSchema = SettingsSchema([
     SettingDefinition(
-      key: SettingKey.model, valueType: .choice,
-      choices: descriptors.map(\.id), defaultValue: .choice(defaultModelId),
-      label: "Model", help: "ElevenLabs text-to-speech model."),
+      key: SettingKey.model, valueType: .string,
+      defaultValue: .string(defaultModelId),
+      label: "Model",
+      help: "ElevenLabs model id matching ^eleven_[a-z0-9_]+$; any such id is passed through."),
     SettingDefinition(
       key: SettingKey.stability, valueType: .double, range: 0...1,
       defaultValue: .double(0.5), label: "Stability", step: 0.05),
@@ -75,7 +98,15 @@ public enum ElevenLabsModels {
     SettingDefinition(
       key: SettingKey.seed, valueType: .int, range: 0...Double(UInt32.max),
       label: "Seed", help: "Best-effort determinism (UInt32)."),
+    SettingDefinition(
+      key: SettingKey.maxConcurrentRequests, valueType: .int, range: 1...32,
+      defaultValue: .int(defaultMaxConcurrentRequests), scope: .perPlugin,
+      label: "Max concurrent requests",
+      help: "Parallel ElevenLabs requests; keep at or below your plan's limit (EL-2.5)."),
   ])
+
+  /// EL-2.5. Safe for every plan, including Free.
+  public static let defaultMaxConcurrentRequests = 2
 
   /// Setting keys, as they appear in `SpeechRequest.settings`.
   public enum SettingKey {
@@ -86,5 +117,7 @@ public enum ElevenLabsModels {
     public static let useSpeakerBoost = "use_speaker_boost"
     public static let speed = "speed"
     public static let seed = "seed"
+    /// Plugin-wide (`PluginConfiguration`), not per voice.
+    public static let maxConcurrentRequests = "max_concurrent_requests"
   }
 }
