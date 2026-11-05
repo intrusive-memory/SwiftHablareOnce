@@ -113,6 +113,7 @@ jobs:
           xcodebuild test \
             -scheme SwiftHablareOnce \
             -destination 'platform=macOS' \
+            -skip-testing:SwiftHablareOnceLiveTests \
             2>&1 | tee test-output-macOS.log
           echo "✅ Tests completed"
 

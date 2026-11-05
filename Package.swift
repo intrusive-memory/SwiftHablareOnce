@@ -41,5 +41,17 @@ let package = Package(
         .enableUpcomingFeature("StrictConcurrency")
       ]
     ),
+    .testTarget(
+      name: "SwiftHablareOnceLiveTests",
+      dependencies: [
+        "SwiftHablareOnce",
+        .product(name: "SwiftHablare", package: "SwiftHablare"),
+        .product(name: "SwiftHablareTesting", package: "SwiftHablare"),
+        .product(name: "SwiftOnce", package: "SwiftOnce"),
+      ],
+      swiftSettings: [
+        .enableUpcomingFeature("StrictConcurrency")
+      ]
+    ),
   ]
 )

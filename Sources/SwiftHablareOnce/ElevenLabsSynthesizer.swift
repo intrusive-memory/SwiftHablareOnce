@@ -61,6 +61,7 @@ public struct ElevenLabsSynthesizer: VoiceSynthesizer {
   // MARK: Synthesis
 
   public func synthesize(_ request: SpeechRequest) async throws -> GeneratedAudio {
+    if Task.isCancelled { throw HablareError.cancelled }
     let prepared = try Self.prepare(request)
     guard let apiKey = plugin.resolveAPIKey() else {
       throw HablareError.missingCredential(
@@ -321,7 +322,8 @@ extension ElevenLabsSynthesizer {
   /// Maps SwiftOnce errors to categorised `HablareError`s. Nothing here carries the key:
   /// response bodies are dropped for server errors and scrubbed elsewhere.
   static func mapped(_ error: Error, apiKey: String) -> Error {
-    if error is CancellationError { return HablareError.cancelled }
+    // A cancelled task surfaces from URLSession as URLError.cancelled, which SwiftOnce wraps.
+    if error is CancellationError || Task.isCancelled { return HablareError.cancelled }
     if let hablare = error as? HablareError { return hablare }
     guard let once = error as? ElevenLabsError else {
       return HablareError.transient(underlying: Sanitized(scrub(String(describing: error), apiKey)))

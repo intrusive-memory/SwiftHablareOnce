@@ -23,7 +23,8 @@ This is a **Makefile-first project**. Use `make` targets, never `swift build`/`s
 ```bash
 make help     # list targets
 make build    # xcodebuild build of the library
-make test     # xcodebuild test
+make test     # offline xcodebuild test (skips the live target)
+make test-live # gated live ElevenLabs tests (needs ELEVENLABS_API_KEY)
 make lint     # swift format -i -r .
 make resolve  # resolve SPM dependencies
 make clean    # remove DerivedData artifacts
@@ -45,3 +46,15 @@ version (there is no version constant in source).
 
 This package targets `SwiftHablare >= 7.1.0` and `SwiftOnce >= 1.1.1` (both `.upToNextMajor`). Major-version bumps in
 either dependency may require coordinated updates here.
+
+## Tests and live-test observations
+
+- `ElevenLabsConformanceTests` runs `ConformanceKit.run(ElevenLabsPlugin.self, ...)` in `make test`. The kit
+  builds the plugin itself, so HTTP is mocked with a `URLProtocol` on `URLSession.shared`.
+- `SwiftHablareOnceLiveTests` is a separate target. `make test` and CI pass `-skip-testing:SwiftHablareOnceLiveTests`;
+  the tests also self-gate on `ELEVENLABS_API_KEY` and `GITHUB_ACTIONS != "true"`. Run `make test-live` (once; it spends
+  real credits). Never print the key.
+- Observed 2026-11-04 (settles recon X-02): `eleven_v4` accepts `[whispering]`-style instruct (HTTP 200, 24 kHz mono
+  16-bit WAV, `droppedInstruct == false`). Whether the tag is spoken aloud was not transcribed.
+- Observed 2026-11-04: the design API returns previews with media type `audio/pcm` when `pcm_24000` is requested (3 previews).
+- A designed voice is deleted in the test's cleanup; `voice_slots_used` was 4 before and 4 after.
