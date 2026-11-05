@@ -16,9 +16,9 @@ let package = Package(
   ],
   dependencies: [
     .package(
-      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "6.3.0")),
+      url: "https://github.com/intrusive-memory/SwiftHablare.git", .upToNextMajor(from: "7.1.0")),
     .package(
-      url: "https://github.com/intrusive-memory/SwiftOnce.git", .upToNextMajor(from: "1.0.0")),
+      url: "https://github.com/intrusive-memory/SwiftOnce.git", .upToNextMajor(from: "1.1.1")),
   ],
   targets: [
     .target(
@@ -36,6 +36,20 @@ let package = Package(
       dependencies: [
         "SwiftHablareOnce",
         .product(name: "SwiftHablare", package: "SwiftHablare"),
+        .product(name: "SwiftHablareTesting", package: "SwiftHablare"),
+        .product(name: "SwiftOnce", package: "SwiftOnce"),
+      ],
+      swiftSettings: [
+        .enableUpcomingFeature("StrictConcurrency")
+      ]
+    ),
+    .testTarget(
+      name: "SwiftHablareOnceLiveTests",
+      dependencies: [
+        "SwiftHablareOnce",
+        .product(name: "SwiftHablare", package: "SwiftHablare"),
+        .product(name: "SwiftHablareTesting", package: "SwiftHablare"),
+        .product(name: "SwiftOnce", package: "SwiftOnce"),
       ],
       swiftSettings: [
         .enableUpcomingFeature("StrictConcurrency")

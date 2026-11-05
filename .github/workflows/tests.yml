@@ -13,7 +13,7 @@ concurrency:
 jobs:
   code-quality:
     name: Code Quality
-    runs-on: macos-26
+    runs-on: xcode-27
 
     steps:
       - name: Checkout code
@@ -95,7 +95,7 @@ jobs:
 
   macos-tests:
     name: macOS Tests
-    runs-on: macos-26
+    runs-on: xcode-27
     needs: [code-quality]
     steps:
       - name: Checkout code
@@ -113,6 +113,7 @@ jobs:
           xcodebuild test \
             -scheme SwiftHablareOnce \
             -destination 'platform=macOS' \
+            -skip-testing:SwiftHablareOnceLiveTests \
             2>&1 | tee test-output-macOS.log
           echo "✅ Tests completed"
 
