@@ -25,7 +25,7 @@ Requires SwiftHablare 7.1.0+ and SwiftOnce 1.1.1+ (resolved transitively).
 import SwiftHablare
 import SwiftHablareOnce
 
-let keys = KeychainAPIKeyStore()  // or any APIKeyStoring; ELEVENLABS_API_KEY is also honored
+let keys: any APIKeyStoring = ...  // your host's key store; ELEVENLABS_API_KEY is the env var name
 let context = PluginContext(keys: keys, registry: PluginRegistry(plugins: []))
 let plugin = try await ElevenLabsPlugin(context: context)
 
