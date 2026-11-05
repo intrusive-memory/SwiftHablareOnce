@@ -24,8 +24,8 @@ commands (`make build`, `make test`, `make lint`, `make clean`, `make resolve`).
 1. **ALWAYS use Makefile targets**
 2. **NEVER use `swift build` or `swift test`** — Use XcodeBuildMCP or Makefile targets
 3. **Run `make lint` before committing** — Formats all Swift source files
-4. **Follow the sibling pattern** when adding dependencies; mirror what SwiftHablare and
-   SwiftVoxAlta already use
+4. **intrusive-memory/* dependencies are remote `.upToNextMajor(from:)` pins** — no sibling
+   helper, `path:` or `branch:`
 5. **iOS 26.0+ / macOS 26.0+ only** — never add code paths for older platforms
 
 ## Module Collision (Voice type)
